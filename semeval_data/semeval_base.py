@@ -17,6 +17,7 @@ corpus.write_out('%s--test.predicted-aspect.xml'%domain_name, predicted, short=F
 Similarly, for Aspect Category Detection, Aspect Term Polarity Estimation, and Aspect Category Polarity Estimation.
 '''
 
+
 __author__ = "J. Pavlopoulos"
 __credits__ = "J. Pavlopoulos, D. Galanis, I. Androutsopoulos"
 __license__ = "GPL"
@@ -34,16 +35,135 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Stopwords, imported from NLTK (v 2.0.4)
-stopwords = set(
-    ['i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours', 'yourself', 'yourselves',
-     'he', 'him', 'his', 'himself', 'she', 'her', 'hers', 'herself', 'it', 'its', 'itself', 'they', 'them', 'their',
-     'theirs', 'themselves', 'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'am', 'is', 'are', 'was',
-     'were', 'be', 'been', 'being', 'have', 'has', 'had', 'having', 'do', 'does', 'did', 'doing', 'a', 'an', 'the',
-     'and', 'but', 'if', 'or', 'because', 'as', 'until', 'while', 'of', 'at', 'by', 'for', 'with', 'about', 'against',
-     'between', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down', 'in',
-     'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why',
-     'how', 'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only',
-     'own', 'same', 'so', 'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now'])
+stopwords = {
+    'i',
+    'me',
+    'my',
+    'myself',
+    'we',
+    'our',
+    'ours',
+    'ourselves',
+    'you',
+    'your',
+    'yours',
+    'yourself',
+    'yourselves',
+    'he',
+    'him',
+    'his',
+    'himself',
+    'she',
+    'her',
+    'hers',
+    'herself',
+    'it',
+    'its',
+    'itself',
+    'they',
+    'them',
+    'their',
+    'theirs',
+    'themselves',
+    'what',
+    'which',
+    'who',
+    'whom',
+    'this',
+    'that',
+    'these',
+    'those',
+    'am',
+    'is',
+    'are',
+    'was',
+    'were',
+    'be',
+    'been',
+    'being',
+    'have',
+    'has',
+    'had',
+    'having',
+    'do',
+    'does',
+    'did',
+    'doing',
+    'a',
+    'an',
+    'the',
+    'and',
+    'but',
+    'if',
+    'or',
+    'because',
+    'as',
+    'until',
+    'while',
+    'of',
+    'at',
+    'by',
+    'for',
+    'with',
+    'about',
+    'against',
+    'between',
+    'into',
+    'through',
+    'during',
+    'before',
+    'after',
+    'above',
+    'below',
+    'to',
+    'from',
+    'up',
+    'down',
+    'in',
+    'out',
+    'on',
+    'off',
+    'over',
+    'under',
+    'again',
+    'further',
+    'then',
+    'once',
+    'here',
+    'there',
+    'when',
+    'where',
+    'why',
+    'how',
+    'all',
+    'any',
+    'both',
+    'each',
+    'few',
+    'more',
+    'most',
+    'other',
+    'some',
+    'such',
+    'no',
+    'nor',
+    'not',
+    'only',
+    'own',
+    'same',
+    'so',
+    'than',
+    'too',
+    'very',
+    's',
+    't',
+    'can',
+    'will',
+    'just',
+    'don',
+    'should',
+    'now',
+}
 
 
 def fd(counts):
@@ -79,8 +199,10 @@ def validate(filename):
     for e in elements:
         for eterms in e.findall('aspectTerms'):
             if eterms is not None:
-                for a in eterms.findall('aspectTerm'):
-                    aspects.append(Aspect('', '', []).create(a).term)
+                aspects.extend(
+                    Aspect('', '', []).create(a).term
+                    for a in eterms.findall('aspectTerm')
+                )
     return elements, aspects
 
 
@@ -89,7 +211,7 @@ fix = lambda text: escape(text.encode('utf8')).replace('\"','&quot;')
 
 # Dice coefficient
 def dice(t1, t2, stopwords=[]):
-    tokenize = lambda t: set([w for w in t.split() if (w not in stopwords)])
+    tokenize = lambda t: {w for w in t.split() if (w not in stopwords)}
     t1, t2 = tokenize(t1), tokenize(t2)
     return 2. * len(t1.intersection(t2)) / (len(t1) + len(t2))
 
@@ -222,8 +344,9 @@ class BaselineAspectExtractor():
             start += len(term)
 
     def find_offsets(self, term, text):
-        offsets = [(i, i + len(term)) for i in list(self.find_offsets_quickly(term, text))]
-        return offsets
+        return [
+            (i, i + len(term)) for i in list(self.find_offsets_quickly(term, text))
+        ]
 
     def tag(self, test_instances):
         clones = []
@@ -232,7 +355,7 @@ class BaselineAspectExtractor():
             i_.aspect_terms = []
             for c in set(self.candidates):
                 if c in i_.text:
-                    offsets = self.find_offsets(' ' + c + ' ', i.text)
+                    offsets = self.find_offsets(f' {c} ', i.text)
                     for start, end in offsets: i_.add_aspect_term(term=c,
                                                                   offsets={'from': str(start + 1), 'to': str(end - 1)})
             clones.append(i_)
@@ -251,10 +374,13 @@ class BaselineCategoryDetector():
         neighbors = dict([(i, dice(text, n, stopwords)) for i, n in enumerate(self.corpus.texts)])
         ranked = freq_rank(neighbors)
         topk = [self.corpus.corpus[i] for i in ranked[:k]]
-        num_of_cats = 1 if not multi else int(sum([len(i.aspect_categories) for i in topk]) / float(k))
+        num_of_cats = (
+            1
+            if not multi
+            else int(sum(len(i.aspect_categories) for i in topk) / float(k))
+        )
         cats = freq_rank(fd([c for i in topk for c in i.get_aspect_categories()]))
-        categories = [cats[i] for i in range(num_of_cats)]
-        return categories
+        return [cats[i] for i in range(num_of_cats)]
 
     def tag(self, test_instances):
         clones = []
@@ -278,11 +404,12 @@ class BaselineStageI():
             i_ = copy.deepcopy(i)
             i_.aspect_categories, i_.aspect_terms = [], []
             for a in set(self.b1.candidates):
-                offsets = self.b1.find_offsets(' ' + a + ' ', i_.text)
+                offsets = self.b1.find_offsets(f' {a} ', i_.text)
                 for start, end in offsets:
                     i_.add_aspect_term(term=a, offsets={'from': str(start + 1), 'to': str(end - 1)})
-            for c in self.b2.fetch_k_nn(i_.text):
-                i_.aspect_categories.append(Category(term=c))
+            i_.aspect_categories.extend(
+                Category(term=c) for c in self.b2.fetch_k_nn(i_.text)
+            )
             clones.append(i_)
         return clones
 
@@ -309,12 +436,10 @@ class BaselineAspectPolarityEstimator():
     def majority(self, text, aspect):
         if aspect not in self.fd:
             return self.major
+        if polarities := self.k_nn(text, aspect, k=5):
+            return polarities[0]
         else:
-            polarities = self.k_nn(text, aspect, k=5)
-            if polarities:
-                return polarities[0]
-            else:
-                return self.major
+            return self.major
 
     def tag(self, test_instances):
         clones = []
@@ -417,7 +542,7 @@ class Evaluate():
         for i in range(self.size):
             cor = [a.polarity for a in self.correct[i].aspect_terms]
             pre = [a.polarity for a in self.predicted[i].aspect_terms]
-            common += sum([1 for j in range(len(pre)) if pre[j] == cor[j]])
+            common += sum(1 for j in range(len(pre)) if pre[j] == cor[j])
             retrieved += len(pre)
         acc = common / retrieved
         return acc, common, retrieved
@@ -427,7 +552,7 @@ class Evaluate():
         for i in range(self.size):
             cor = [a.polarity for a in self.correct[i].aspect_categories]
             pre = [a.polarity for a in self.predicted[i].aspect_categories]
-            common += sum([1 for j in range(len(pre)) if pre[j] == cor[j]])
+            common += sum(1 for j in range(len(pre)) if pre[j] == cor[j])
             retrieved += len(pre)
         acc = common / retrieved
         return acc, common, retrieved

@@ -38,7 +38,7 @@ def run_semaphor(corpus,identifier):
         print('Semafor need to be installed in the machine in order to parse the semantic frames')
         print('Check directories.py and Semafor config file parameters')
 
-    path = pwd + '/semaphor_files/semaphor_' + identifier + '.txt'
+    path = f'{pwd}/semaphor_files/semaphor_{identifier}.txt'
     sents = '\n'.join(corpus.texts)
     sents = sents.encode("ascii","ignore") # The current api only handle ascii text
     frames = mysemaphore(sents,path)
@@ -59,35 +59,36 @@ def run_senna(sents,identifier):
     (stdout, stderr) = p.communicate(input=sents)
     senna_output = stdout
 
-    open('senna_files/senna_'+identifier+'.txt','w').write(senna_output)
+    open(f'senna_files/senna_{identifier}.txt', 'w').write(senna_output)
 
     # Check the return code.
     if p.returncode != 0:
         print ('Senna command failed! Details: %s\n%s' % (stderr,senna_output))
         return None
 
-    sentences = list()
-    sent = list()
+    sentences = []
+    sent = []
 
     lines = senna_output.split('\n')
     for line in lines:
         values = re.split(r'[ \t]',line)
         values = [t for t in values if len(t) != 0]
-        if len(values) == 0:
+        if not values:
             sentences.append(sent)
-            sent = list()
+            sent = []
             continue
         try:
-            senna_conll = dict()
-            senna_conll['word'] = values[0]
-            senna_conll['pos'] = values[1]
-            senna_conll['chunk'] = values[2]
-            senna_conll['ne'] = values[3]
-            senna_conll['srl'] = values[4:-1]
-            senna_conll['tree'] = values[-1]
+            senna_conll = {
+                'word': values[0],
+                'pos': values[1],
+                'chunk': values[2],
+                'ne': values[3],
+                'srl': values[4:-1],
+                'tree': values[-1],
+            }
             sent.append(senna_conll)
         except:
-            print ('Error reading senna output line: ' + line)
+            print(f'Error reading senna output line: {line}')
 
     return sentences
 
@@ -95,21 +96,20 @@ def run_senna(sents,identifier):
 # You dont need to chenge anything here if you already have the corpora.pkl
 # file
 def load_corpora():
-    corpora = dict()
+    corpora = {}
 
     if os.path.exists('corpora.pkl'):
         corpora = pickle.load(open('corpora.pkl','rb'))
     else:
-        corpora['restaurants'] = dict()
-        corpora['laptop'] = dict()
+        corpora['restaurants'] = {}
+        corpora['laptop'] = {}
 
         # the trainset is composed by train and trial dataset
         train_filename = 'semeval_data/Restaurants_Train_v2.xml'
         trial_filename = 'semeval_data/restaurants-trial.xml'
         corpus = Corpus(ET.parse(train_filename).getroot().findall('sentence') + ET.parse(trial_filename).getroot().findall('sentence'))
         identifier = 'restaurants_train'
-        corpora['restaurants']['trainset'] = dict()
-        corpora['restaurants']['trainset']['corpus'] = corpus
+        corpora['restaurants']['trainset'] = {'corpus': corpus}
         frames = run_semaphor(corpus,identifier)
         corpora['restaurants']['trainset']['semaphor'] = frames
         tokenized_sents = [frame['text'] for frame in frames]
@@ -132,7 +132,7 @@ def load_corpora():
         corpus_filename = 'semeval_data/Restaurants_Test_Data_PhaseA.xml'
         corpus = Corpus(ET.parse(corpus_filename).getroot().findall('sentence'))
         identifier = 'restaurants_test'
-        corpora['restaurants']['testset'] = dict()
+        corpora['restaurants']['testset'] = {}
         corpora['restaurants']['testset']['corpus'] = corpus
         frames = run_semaphor(corpus, identifier)
         corpora['restaurants']['testset']['semaphor'] = frames
@@ -144,7 +144,7 @@ def load_corpora():
         trial_filename = 'semeval_data/laptops-trial.xml'
         corpus = Corpus(ET.parse(train_filename).getroot().findall('sentence') + ET.parse(trial_filename).getroot().findall('sentence'))
         identifier = 'laptop_train'
-        corpora['laptop']['trainset'] = dict()
+        corpora['laptop']['trainset'] = {}
         corpora['laptop']['trainset']['corpus'] = corpus
         frames = run_semaphor(corpus, identifier)
         corpora['laptop']['trainset']['semaphor'] = frames
@@ -168,7 +168,7 @@ def load_corpora():
         corpus_filename = 'semeval_data/Laptops_Test_Data_PhaseA.xml'
         identifier = 'laptop_test'
         corpus = Corpus(ET.parse(corpus_filename).getroot().findall('sentence'))
-        corpora['laptop']['testset'] = dict()
+        corpora['laptop']['testset'] = {}
         corpora['laptop']['testset']['corpus'] = corpus
         frames = run_semaphor(corpus,identifier)
         corpora['laptop']['testset']['semaphor'] = frames
@@ -186,121 +186,123 @@ def save_conll(path, dataset, gold=True):
     senna = dataset['senna']
     semaphor = dataset['semaphor']
 
-    fp = open(path,'w')
+    with open(path,'w') as fp:
+            # for each text in corpus
+        for i in range(len(corpus)):
+            line = ''
 
-    # for each text in corpus
-    for i in range(len(corpus)):
-        line = ''
-
-        # map the aspects tokens into tokenized senna text
-        text = senna[i]
-        tokens = [token['word'] for token in text]
-        aspects = ['False' for token in text]
-        aspect_terms = [t.split() for t in corpus[i].get_aspect_terms()]
-        for term in aspect_terms:
-            # Is it a unigram?
-            if len(term) == 1:
-                # In which position(s) this unigram can be found. Sometimes the
-                # tokenizer joint the ' with the token. I am ignoring it
-                for i in [i for i,token in enumerate(tokens) if token == term[0] or token.replace("'","") == term[0]]:
-                    # tag the token as aspect
-                    aspects[i]= 'True'
-            else:
-                # This is a n-gram
-                # In which position(s) this n-gram start
-                for i in [i for i,token in enumerate(tokens) if token.lower() == term[0]]:
-                    # The text n-gram is the same as the aspect n-gram
-                    if term == tokens[i:i+len(term)]:
-                        # tag all the tokens in the ngram as aspect
-                        for j in range(len(term)):
-                            aspects[i+j] = 'True'
+            # map the aspects tokens into tokenized senna text
+            text = senna[i]
+            tokens = [token['word'] for token in text]
+            aspects = ['False' for _ in text]
+            aspect_terms = [t.split() for t in corpus[i].get_aspect_terms()]
+            for term in aspect_terms:
+                # Is it a unigram?
+                if len(term) == 1:
+                    # In which position(s) this unigram can be found. Sometimes the
+                    # tokenizer joint the ' with the token. I am ignoring it
+                    for i in [i for i,token in enumerate(tokens) if token == term[0] or token.replace("'","") == term[0]]:
+                        # tag the token as aspect
+                        aspects[i]= 'True'
+                else:
+                    # This is a n-gram
+                    # In which position(s) this n-gram start
+                    for i in [i for i,token in enumerate(tokens) if token.lower() == term[0]]:
+                        # The text n-gram is the same as the aspect n-gram
+                        if term == tokens[i:i+len(term)]:
+                            # tag all the tokens in the ngram as aspect
+                            for j in range(len(term)):
+                                aspects[i+j] = 'True'
 
 
-        srl = ['O'  for token in text]
-        for index, senna_conll in enumerate(text):
-            # Atribute the value for the first column in senna which has a
-            # value
-            for role in senna_conll['srl']:
-                if role != 'O':
-                    srl[index] = role
+            srl = ['O' for _ in text]
+            for index, senna_conll in enumerate(text):
+                # Atribute the value for the first column in senna which has a
+                # value
+                for role in senna_conll['srl']:
+                    if role != 'O':
+                        srl[index] = role
 
-        # semantic frames
-        key_concept_list = []
-        frames = semaphor[i]['fn-labels']
-        for concept in frames.keys():
-            if isinstance(frames[concept],dict):
-                for subconcept in frames[concept].keys():
-                    if isinstance(frames[concept][subconcept],dict):
-                        for subsubconcept in frames[concept][subconcept].keys():
-                            if isinstance(frames[concept][subconcept][subsubconcept],str):
-                                key_concept_list.append( (frames[concept][subconcept][subsubconcept],concept) )
-                    elif isinstance(frames[concept][subconcept],str):
-                        key_concept_list.append( (frames[concept][subconcept],concept) )
-            elif isinstance(frames[concept],str):
-                key_concept_list.append( (frames[concept][subconcept],concept) )
+            # semantic frames
+            key_concept_list = []
+            frames = semaphor[i]['fn-labels']
+            for concept in frames.keys():
+                if isinstance(frames[concept],dict):
+                    for subconcept in frames[concept].keys():
+                        if isinstance(frames[concept][subconcept],dict):
+                            key_concept_list.extend(
+                                (
+                                    frames[concept][subconcept][subsubconcept],
+                                    concept,
+                                )
+                                for subsubconcept in frames[concept][
+                                    subconcept
+                                ].keys()
+                                if isinstance(
+                                    frames[concept][subconcept][subsubconcept],
+                                    str,
+                                )
+                            )
+                        elif isinstance(frames[concept][subconcept],str):
+                            key_concept_list.append( (frames[concept][subconcept],concept) )
+                elif isinstance(frames[concept],str):
+                    key_concept_list.append( (frames[concept][subconcept],concept) )
 
-        # map the semantic frames into tokenized senna text
-        tokens = [token['word'] for token in text]
-        target_frames = ['O' for token in text]
-        aspect_terms = [t.split() for t in corpus[i].get_aspect_terms()]
-        for term,concept in key_concept_list:
-            term = term.split()
-            # Is it a unigram?
-            if len(term) == 1:
-                # In which position(s) this unigram can be found. Sometimes the
-                # tokenizer joint the ' with the token. I am ignoring it
-                for i in [i for i,token in enumerate(tokens) if token == term[0] or token.replace("'","") == term[0]]:
-                    # tag the token as aspect
-                    target_frames[i]= concept
-            else:
-                # This is a n-gram
-                # In which position(s) this n-gram start
-                for i in [i for i,token in enumerate(tokens) if token.lower() == term[0]]:
-                    # The text n-gram is the same as the aspect n-gram
-                    if term == tokens[i:i+len(term)]:
-                        # tag all the tokens in the ngram as aspect
-                        for j in range(len(term)):
-                            target_frames[i+j] = concept
+            # map the semantic frames into tokenized senna text
+            tokens = [token['word'] for token in text]
+            target_frames = ['O' for _ in text]
+            aspect_terms = [t.split() for t in corpus[i].get_aspect_terms()]
+            for term,concept in key_concept_list:
+                term = term.split()
+                # Is it a unigram?
+                if len(term) == 1:
+                    # In which position(s) this unigram can be found. Sometimes the
+                    # tokenizer joint the ' with the token. I am ignoring it
+                    for i in [i for i,token in enumerate(tokens) if token == term[0] or token.replace("'","") == term[0]]:
+                        # tag the token as aspect
+                        target_frames[i]= concept
+                else:
+                    # This is a n-gram
+                    # In which position(s) this n-gram start
+                    for i in [i for i,token in enumerate(tokens) if token.lower() == term[0]]:
+                        # The text n-gram is the same as the aspect n-gram
+                        if term == tokens[i:i+len(term)]:
+                            # tag all the tokens in the ngram as aspect
+                            for j in range(len(term)):
+                                target_frames[i+j] = concept
 
-        # write in CONLL format (One feature per column)
-        for index, senna_conll in enumerate(text):
-            line += senna_conll['word'] + '\t'
-            line += senna_conll['pos'] + '\t'
-            line += senna_conll['chunk'] + '\t'
-            line += senna_conll['ne'] + '\t'
-            line += srl[index] + '\t'
-            line += target_frames[index]
-            if gold:
-                line += '\t' + aspects[index] + '\n'
-            else:
-                line += '\n'
-
-        line += '\n'
-        fp.write(line)
-    fp.close()
+                    # write in CONLL format (One feature per column)
+            for index, senna_conll in enumerate(text):
+                line += senna_conll['word'] + '\t'
+                line += senna_conll['pos'] + '\t'
+                line += senna_conll['chunk'] + '\t'
+                line += senna_conll['ne'] + '\t'
+                line += srl[index] + '\t'
+                line += target_frames[index]
+                line += '\t' + aspects[index] + '\n' if gold else '\n'
+            line += '\n'
+            fp.write(line)
 
 # Retrieve the aspects from CRF predictions. The last column in CRF output has
 # the information if the word is an aspect (True) or not (FALSE).
 def retrieve_aspects(predictions):
     # predictions in conll format
     lines = predictions.split('\n')
-    sentences = list()
-    aspects = list()
+    sentences = []
+    aspects = []
     last_aspect_line = -2
     for lineno, line in enumerate(lines):
         values = re.split(r'[ \t]',line)
-        values = [t for t in values if len(t) != 0]
-        # Empty line is a new text
-        if len(values) == 0:
-            sentences.append(aspects)
-            aspects = list()
-        else:
+        if values := [t for t in values if len(t) != 0]:
             if values[-1] == 'True':
                 if last_aspect_line+1 == lineno:
-                    aspects[-1] = aspects[-1] + ' ' + values[0]
+                    aspects[-1] = f'{aspects[-1]} {values[0]}'
                 else:
                     aspects.append(values[0])
                 last_aspect_line = lineno
+        else:
+            sentences.append(aspects)
+            aspects = []
     return sentences
 
 # Funcition to train a CRF. It need the CRF++ installed
@@ -346,7 +348,7 @@ def test_crfpp(crf_test_path, model_path, testset):
 
     # Check the return code.
     if p.returncode != 0:
-        print ('crf_learn command failed! Details: %s\n%s' % (stderr,stdout))
+        print('crf_learn command failed! Details: %s\n%s' % (stderr, predictions))
         return None
 
     # write predictions in the file
@@ -389,9 +391,7 @@ def AspectExtraction(trainset,testset):
     train_crfpp(crf_learn_path, crf_params, template_path, model_path, trainset)
     aspect_list = test_crfpp(crf_test_path, model_path, testset)
 
-    predicted = tag(b1,testset['corpus'].corpus,aspect_list)
-    #print('MySystem: P = %f -- R = %f -- F1 = %f (#correct: %d, #retrieved: %d, #relevant: %d)'% Evaluate(testset['corpus'].corpus,predicted).aspect_extraction())
-    return predicted
+    return tag(b1,testset['corpus'].corpus,aspect_list)
 
 
 ######### Main Block ###########
@@ -406,4 +406,6 @@ for domain_name in ['restaurants','laptop']:
     predicted = AspectExtraction(trainset,testset)
 
     corpus = corpora[domain_name]['trainset']['corpus']
-    corpus.write_out('%s--test.predicted-aspect.xml' % domain_name, predicted, short=False)
+    corpus.write_out(
+        f'{domain_name}--test.predicted-aspect.xml', predicted, short=False
+    )
