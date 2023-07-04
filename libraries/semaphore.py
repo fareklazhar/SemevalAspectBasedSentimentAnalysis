@@ -43,7 +43,7 @@ def run_semaphore(release=release, command='fnParserDriver.sh', sample='../sampl
     try:
         os.chdir(release)
 
-        os.system(command + ' ' + sample + " " + output)
+        os.system(f'{command} {sample} {output}')
     finally:
         #to make sure that we are in the directory in which semaphore.py is stored.
         os.chdir(here)
@@ -170,7 +170,7 @@ def mysemaphore(text, path, semaphore=release):
 
     run_semaphore(release=semaphore, sample=sample)
 
-    shutil.copy (semaphore+'/../samples/output.txt',path)
+    shutil.copy(f'{semaphore}/../samples/output.txt', path)
 
     return import_semaphore()
 
